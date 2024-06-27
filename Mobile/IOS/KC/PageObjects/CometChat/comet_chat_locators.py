@@ -1,0 +1,17 @@
+message_section = '//XCUIElementTypeTable/XCUIElementTypeCell'
+first_join_button = 'xpath=(//XCUIElementTypeButton[@name="JOIN"])[1]'
+message_list = '//XCUIElementTypeNavigationBar[@name="KKR_App.CometChatMessageList"]'
+send_button = '//XCUIElementTypeButton[@name="send icon"]'
+first_joined_button = '//XCUIElementTypeButton[@name="JOINED"][1]'
+laughing_emoji = '//XCUIElementTypeStaticText[@name="😂"]'
+comment_field = '//XCUIElementTypeTextView'
+messages = '//XCUIElementTypeTable/XCUIElementTypeCell'
+
+group_icon = '//XCUIElementTypeNavigationBar[@name="KKR_App.CometChatMessageList"]/XCUIElementTypeOther[1]/XCUIElementTypeImage'
+first_gif_image = '//XCUIElementTypeCollectionView/XCUIElementTypeCell[1]/XCUIElementTypeOther/XCUIElementTypeImage'
+search_field='//XCUIElementTypeSearchField[@name="Search"]'
+search_button= '//XCUIElementTypeButton[@name="Search"]'
+group_list_section = '//XCUIElementTypeTable/XCUIElementTypeCell'
+enter_question_field = 'xpath=//XCUIElementTypeTextField[@value="Enter your question"]'
+enter_option_field = 'xpath=(//XCUIElementTypeTextField[@value="Enter your option"])[1]'
+

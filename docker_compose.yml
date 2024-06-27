@@ -1,0 +1,19 @@
+version: '3'
+services:
+  appium:
+    image: appium/appium
+    ports:
+      - "4723:4723"
+    environment:
+      - DEVICE_NAME= bae57ac0
+      - PLATFORM_NAME= Android
+      - UDID=your_device_udid
+      - AUTOMATION_NAME=UiAutomator2
+
+  tests:
+    build: .
+    environment:
+      - APPIUM_SERVER=http://appium:4723/wd/hub
+    depends_on:
+      - appium
+    command: ["robot", "Mobile/Android/KC/TestCases/Login/already_registered_user_test.robot"]

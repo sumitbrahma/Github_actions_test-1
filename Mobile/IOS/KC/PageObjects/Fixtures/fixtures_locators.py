@@ -1,0 +1,8 @@
+home_add_to_calender = 'xpath=//XCUIElementTypeButton[@name="Add to Calendar"]'
+fixtures_add_to_calender = '//XCUIElementTypeStaticText[@name="ADD TO CALENDAR"]'
+matchcenter_button = 'xpath=(//XCUIElementTypeStaticText[@name="MATCHCENTRE"])[12]'
+google_text = 'xpath=//XCUIElementTypeStaticText[@name="Google"]'
+use_another_acc_field = '//XCUIElementTypeStaticText[@name="Use another account"]'
+done_button_email_field = 'xpath=(//XCUIElementTypeButton[@name="Done"])[2]'
+next_button = '//XCUIElementTypeButton[@name="Next"]'
+calendar_sync_message = 'calendar synced to your email'

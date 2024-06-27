@@ -1,0 +1,11 @@
+{
+  "host":"http://127.0.0.1:4723",
+  "platformName":"Android",
+  "deviceName":"bae57ac0",
+  "application_sdk": "C:\\Users\\Priti\\Desktop\\SI\\wm-indexnine-qa-automation\\Mobile\\Android\\KC\\TestData\\Application\\app-debug.apk",
+  "ignoreHiddenApiPolicyError":"true",
+  "noReset":"false",
+  "automationName":"UiAutomator2",
+  "newCommandTimeout": "600"
+}
+
