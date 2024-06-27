@@ -1,0 +1,12 @@
+{
+  "host": "http://127.0.0.1:4723",
+  "platformName": "iOS",
+  "deviceName": "iPhone 11",
+  "ignoreHiddenApiPolicyError": "true",
+  "noReset": "false",
+  "platformVersion": "15.7",
+  "automationName": "XCUITest",
+  "udid": "00008030-000504961407402E",
+  "bundleId": "com.knightclub.app",
+  "autoGrantPermissions": "true"
+}

@@ -1,0 +1,9 @@
+{
+  "RR_application_url" : "https://stg-rr.sportz.io/",
+  "RR_CMS_application_url" :  "https://beta-wafcms.sportz.io/login/login?refval",
+  "KC_CMS_application_url" :  "https://beta-wafcms.sportz.io/login/login?refval",
+  "browser" : "chrome",
+  "window_height" : 1920,
+  "window_width" : 1080,
+  "receiver_email" : "bhakti.kolapkar@indexnine.com"
+}
