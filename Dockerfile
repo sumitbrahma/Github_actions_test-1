@@ -52,5 +52,5 @@ WORKDIR /robot
 COPY . /robot
 
 # Execute the Robot Framework test cases
-CMD ["pabot","--outputdir","results", "/robot/Web/RR/TestCases/Login/login_test.robot"]
+CMD ["robot","--outputdir","results", "/robot/Web/RR/TestCases/Login/login_test.robot"]
 
