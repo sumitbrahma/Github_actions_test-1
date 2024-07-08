@@ -39,8 +39,8 @@ jobs:
           AWS_ACCOUNT_ID: 533267409793
           ECR_REPOSITORY: lesson-086
           IMAGE_TAG: ${{ github.sha }}
-          ECS_CLUSTER_NAME: your-ecs-cluster
-          ECS_SERVICE_NAME: your-ecs-service
+          ECS_CLUSTER_NAME: upload_ECS
+          ECS_SERVICE_NAME: web-service
         run: |
           echo "Updating ECS service..."
           aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment --region $AWS_REGION
