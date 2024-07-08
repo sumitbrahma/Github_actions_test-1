@@ -1,52 +1,65 @@
-name: Build and Push Golang Image to AWS ECR
+#!/bin/bash
 
-on:
-  push:
-    branches: [ main ]
+VERSION=""
 
-jobs:
-  build-and-push:
-    name: Build and Push to ECR
-    runs-on: ubuntu-latest
+# get parameters
+while getopts v: flag
+do
+  case "${flag}" in
+    v) VERSION=${OPTARG};;
+  esac
+done
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Ensure all tags are fetched
+# get highest tag number, and add v0.1.0 if doesn't exist
+git fetch --prune --unshallow 2>/dev/null
+CURRENT_VERSION=`git describe --abbrev=0 --tags 2>/dev/null`
 
-      - name: Install dos2unix
-        run: sudo apt-get install dos2unix
+if [[ $CURRENT_VERSION == '' ]]
+then
+  CURRENT_VERSION='v0.1.0'
+fi
+echo "Current Version: $CURRENT_VERSION"
 
-      - name: Convert line endings
-        run: dos2unix ./build/git_update.sh
+# replace . with space so can split into an array
+CURRENT_VERSION_PARTS=(${CURRENT_VERSION//./ })
 
-      - name: List build directory contents
-        run: ls -alh build
+# get number parts
+VNUM1=${CURRENT_VERSION_PARTS[0]}
+VNUM2=${CURRENT_VERSION_PARTS[1]}
+VNUM3=${CURRENT_VERSION_PARTS[2]}
 
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+if [[ $VERSION == 'major' ]]
+then
+  VNUM1=v$((VNUM1+1))
+elif [[ $VERSION == 'minor' ]]
+then
+  VNUM2=$((VNUM2+1))
+elif [[ $VERSION == 'patch' ]]
+then
+  VNUM3=$((VNUM3+1))
+else
+  echo "No version type (https://semver.org/) or incorrect type specified, try: -v [major, minor, patch]"
+  exit 1
+fi
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+# create new tag
+NEW_TAG="$VNUM1.$VNUM2.$VNUM3"
+echo "($VERSION) updating $CURRENT_VERSION to $NEW_TAG"
 
-      - name: Automatic Tagging of Releases
-        id: increment-git-tag
-        run: |
-          chmod +x ./build/git_update.sh
-          bash ./build/git_update.sh -v major
+# get current hash and see if it already has a tag
+GIT_COMMIT=`git rev-parse HEAD`
+NEEDS_TAG=`git describe --contains $GIT_COMMIT 2>/dev/null`
 
-      - name: Build, Tag, and Push the Image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: lesson-086
-          IMAGE_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+# only tag if no tag already
+if [ -z "$NEEDS_TAG" ]; then
+  echo "Tagged with $NEW_TAG"
+  git tag $NEW_TAG
+  git push --tags
+  git push
+else
+  echo "Already a tag on this commit"
+fi
+
+echo ::set-output name=git-tag::$NEW_TAG
+
+exit 0
