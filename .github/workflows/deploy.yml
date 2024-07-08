@@ -1,0 +1,47 @@
+name: Build, Push Docker image to ECR, and Update ECS
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    name: Build, Push Docker image to ECR, and Update ECS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push Docker image
+        id: build-and-push
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: lesson-086
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+
+      - name: Update ECS service
+        env:
+          AWS_REGION: us-east-1
+          AWS_ACCOUNT_ID: 533267409793
+          ECR_REPOSITORY: lesson-086
+          IMAGE_TAG: ${{ github.sha }}
+          ECS_CLUSTER_NAME: your-ecs-cluster
+          ECS_SERVICE_NAME: your-ecs-service
+        run: |
+          echo "Updating ECS service..."
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment --region $AWS_REGION
+
