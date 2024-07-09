@@ -11,6 +11,9 @@ set images[0]=image1
 set images[1]=image2
 set images[2]=image3
 
+:: Variable to hold successfully built images
+set built_images=
+
 :: Loop through the Dockerfiles and build the images
 for /L %%i in (0,1,2) do (
     set dockerfile=!dockerfiles[%%i]!
@@ -24,6 +27,7 @@ for /L %%i in (0,1,2) do (
         exit /b 1
     ) else (
         echo Successfully built !image!
+        set built_images=!built_images!!image! 
     )
 )
 
@@ -43,4 +47,5 @@ for /L %%i in (0,1,2) do (
 )
 
 echo All images built and containers started successfully.
+echo Built images: !built_images!
 endlocal
