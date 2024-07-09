@@ -10,7 +10,7 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AWS_REGION: us-east-1
+      AWS_REGION: "us-east-1"
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
       SERVICES: "service1 service2 service3"
@@ -56,9 +56,9 @@ jobs:
       - name: Create and push Docker manifests
         run: |
           for SERVICE in ${{ env.SERVICES }}; do
-            DIGEST=${{ steps.get-digests.outputs[${SERVICE}_digest] }}
+            DIGEST=${{ steps.get-digests.outputs["${SERVICE}_digest"] }}
             docker manifest create $ECR_REGISTRY/$SERVICE:multi-arch \
-                --amend $ECR_REGISTRY/$SERVICE@${DIGEST}
+                --amend $ECR_REGISTRY/$SERVICE:latest@${DIGEST}
             docker manifest push $ECR_REGISTRY/$SERVICE:multi-arch
           done
 
