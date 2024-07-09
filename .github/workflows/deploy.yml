@@ -2,7 +2,7 @@ name: Build, Push Docker images to ECR, and Update ECS
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   build-and-deploy:
@@ -13,9 +13,9 @@ jobs:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-      SERVICES: service1 service2 service3
-      ECS_CLUSTER_NAME: your-ecs-cluster
-      ECS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role
+      SERVICES: "service1 service2 service3"
+      ECS_CLUSTER_NAME: "your-ecs-cluster"
+      ECS_ROLE_ARN: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role"
 
     steps:
       - name: Checkout code
@@ -40,25 +40,15 @@ jobs:
 
       - name: Build and push Docker images
         run: |
-          docker build -t $ECR_REGISTRY/service1:latest -f Dockerfile.service1 .
-          docker push $ECR_REGISTRY/service1:latest
-
-          docker build -t $ECR_REGISTRY/service2:latest -f Dockerfile.service2 .
-          docker push $ECR_REGISTRY/service2:latest
-
-          docker build -t $ECR_REGISTRY/service3:latest -f Dockerfile.service3 .
-          docker push $ECR_REGISTRY/service3:latest
-
-      - name: Create and push Docker manifests
-        run: |
-          for SERVICE in $SERVICES; do
-            docker manifest create $ECR_REGISTRY/$SERVICE:multi-arch \
-              --amend $ECR_REGISTRY/$SERVICE:latest
-            docker manifest push $ECR_REGISTRY/$SERVICE:multi-arch
+          for SERVICE in ${{ env.SERVICES }}; do
+            docker build -t $ECR_REGISTRY/$SERVICE:latest -f Dockerfile.$SERVICE .
+            docker push $ECR_REGISTRY/$SERVICE:latest
           done
 
       - name: Update ECS services
         run: |
-          for SERVICE in $SERVICES; do
-            aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION
+          for SERVICE in ${{ env.SERVICES }}; do
+            IMAGE_URI=$ECR_REGISTRY/$SERVICE:latest
+            echo "Updating service $SERVICE with image $IMAGE_URI"
+            aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION --desired-count 1
           done
