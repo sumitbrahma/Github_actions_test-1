@@ -40,15 +40,25 @@ jobs:
 
       - name: Build and push Docker images
         run: |
+          docker build -t $ECR_REGISTRY/service1:latest -f Dockerfile.service1 .
+          docker push $ECR_REGISTRY/service1:latest
+
+          docker build -t $ECR_REGISTRY/service2:latest -f Dockerfile.service2 .
+          docker push $ECR_REGISTRY/service2:latest
+
+          docker build -t $ECR_REGISTRY/service3:latest -f Dockerfile.service3 .
+          docker push $ECR_REGISTRY/service3:latest
+
+      - name: Create and push Docker manifests
+        run: |
           for SERVICE in $SERVICES; do
-            IMAGE_TAG=${GITHUB_SHA}
-            docker build -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG ./$SERVICE
-            docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
+            docker manifest create $ECR_REGISTRY/$SERVICE:multi-arch \
+              --amend $ECR_REGISTRY/$SERVICE:latest
+            docker manifest push $ECR_REGISTRY/$SERVICE:multi-arch
           done
 
       - name: Update ECS services
         run: |
           for SERVICE in $SERVICES; do
-            IMAGE_TAG=${GITHUB_SHA}
             aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION
           done
