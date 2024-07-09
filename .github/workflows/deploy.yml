@@ -1,4 +1,4 @@
-name: Build, Push Docker image to ECR, and Update ECS
+name: Build, Push Docker images to ECR, and Update ECS
 
 on:
   push:
@@ -6,8 +6,16 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build, Push Docker image to ECR, and Update ECS
+    name: Build, Push Docker images to ECR, and Update ECS
     runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: us-east-1
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+      SERVICES: service1 service2
+      ECS_CLUSTER_NAME: your-ecs-cluster
+      ECS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role
 
     steps:
       - name: Checkout code
@@ -23,25 +31,17 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
-        id: build-and-push
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: lesson-086
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build and push Docker images
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          for SERVICE in ${{ env.SERVICES }}; do
+            IMAGE_TAG=${{ github.sha }}
+            docker build -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG ./$SERVICE
+            docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
+          done
 
-      - name: Update ECS service
-        env:
-          AWS_REGION: us-east-1
-          AWS_ACCOUNT_ID: 533267409793
-          ECR_REPOSITORY: lesson-086
-          IMAGE_TAG: ${{ github.sha }}
-          ECS_CLUSTER_NAME: upload_ECS
-          ECS_SERVICE_NAME: web-service
+      - name: Update ECS services
         run: |
-          echo "Updating ECS service..."
-          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $ECS_SERVICE_NAME --force-new-deployment --region $AWS_REGION
-
+          for SERVICE in ${{ env.SERVICES }}; do
+            IMAGE_TAG=${{ github.sha }}
+            aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION
+          done
