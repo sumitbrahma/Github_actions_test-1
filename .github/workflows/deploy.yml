@@ -13,7 +13,7 @@ jobs:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
-      SERVICES: service1 service2 service3
+      SERVICES: web-service1 web-service2 web-service3
       ECS_CLUSTER_NAME: upload_ECS
       ECS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role
 
