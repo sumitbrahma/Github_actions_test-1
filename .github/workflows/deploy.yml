@@ -12,7 +12,7 @@ jobs:
     env:
       AWS_REGION: us-east-1
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
-      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
       SERVICES: service1 service2 service3
       ECS_CLUSTER_NAME: your-ecs-cluster
       ECS_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role
@@ -33,15 +33,15 @@ jobs:
 
       - name: Build and push Docker images
         run: |
-          for SERVICE in ${{ env.SERVICES }}; do
-            IMAGE_TAG=${{ github.sha }}
+          for SERVICE in $SERVICES; do
+            IMAGE_TAG=${GITHUB_SHA}
             docker build -t $ECR_REGISTRY/$SERVICE:$IMAGE_TAG ./$SERVICE
             docker push $ECR_REGISTRY/$SERVICE:$IMAGE_TAG
           done
 
       - name: Update ECS services
         run: |
-          for SERVICE in ${{ env.SERVICES }}; do
-            IMAGE_TAG=${{ github.sha }}
+          for SERVICE in $SERVICES; do
+            IMAGE_TAG=${GITHUB_SHA}
             aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION
           done
