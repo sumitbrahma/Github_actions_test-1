@@ -40,7 +40,7 @@ jobs:
 
       - name: Build and push Docker images
         run: |
-          for SERVICE in ${{ env.SERVICES }}; do
+          for SERVICE in $SERVICES; do
             docker build -t $ECR_REGISTRY/$SERVICE:latest -f Dockerfile.$SERVICE .
             docker push $ECR_REGISTRY/$SERVICE:latest
           done
@@ -48,14 +48,14 @@ jobs:
       - name: Get image digests
         id: get-digests
         run: |
-          for SERVICE in ${{ env.SERVICES }}; do
+          for SERVICE in $SERVICES; do
             DIGEST=$(docker images --digests --format "{{.Digest}}" $ECR_REGISTRY/$SERVICE:latest)
             echo "::set-output name=${SERVICE}_digest::$DIGEST"
           done
 
       - name: Create and push Docker manifests
         run: |
-          for SERVICE in ${{ env.SERVICES }}; do
+          for SERVICE in $SERVICES; do
             DIGEST=${{ steps.get-digests.outputs["${SERVICE}_digest"] }}
             docker manifest create $ECR_REGISTRY/$SERVICE:multi-arch \
                 --amend $ECR_REGISTRY/$SERVICE:latest@${DIGEST}
@@ -64,7 +64,7 @@ jobs:
 
       - name: Update ECS services
         run: |
-          for SERVICE in ${{ env.SERVICES }}; do
+          for SERVICE in $SERVICES; do
             IMAGE_URI=$ECR_REGISTRY/$SERVICE:multi-arch
             echo "Updating service $SERVICE with image $IMAGE_URI"
             aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION --desired-count 1
