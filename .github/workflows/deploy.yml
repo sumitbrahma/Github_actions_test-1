@@ -1,56 +1,77 @@
-name: Build and Push Docker Images to AWS ECR
+name: Build, Push Docker Images to ECR, and Update ECS Services
+
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
-  build-and-push:
-    name: Build and Push to ECR
+  build-and-deploy:
+    name: Build, Push Docker Images to ECR, and Update ECS Services
     runs-on: ubuntu-latest
+
+    env:
+      AWS_REGION: "us-east-1"
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+      ECS_CLUSTER_NAME: "upload_ECS"
+      ECS_ROLE_ARN: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role"
 
     strategy:
       matrix:
-        environment: [staging, production, qa]
-        service: [service1, service2, service3]
+        environment:
+          - name: staging
+            service: service-staging
+            dockerfile: Dockerfile.chrome
+          - name: production
+            service: service-production
+            dockerfile: Dockerfile.firefox
+          - name: qa
+            service: service-qa
+            dockerfile: Dockerfile.edge
 
     steps:
-      - name: Checkout
+      - name: Checkout code
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # Ensure all tags are fetched
 
-      - name: Install dos2unix
-        run: sudo apt-get install dos2unix
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
-      - name: Convert line endings
-        run: dos2unix ./build/git_update.sh
-
-      - name: List build directory contents
-        run: ls -alh build
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: us-east-1
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
+      - name: Log in to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Automatic Tagging of Releases
-        id: increment-git-tag
+      - name: Build and push Docker image
         run: |
-          chmod +x ./build/git_update.sh
-          bash ./build/git_update.sh -v major
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.environment.service }}:latest"
+          docker build -t $IMAGE_URI -f ${{ matrix.environment.dockerfile }} .
+          docker push $IMAGE_URI
 
-      - name: Build, Tag, and Push the Image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: lesson-086
-          IMAGE_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
+      - name: Get image digest
+        id: get-digest
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.environment.service }}:latest"
+          DIGEST=$(docker images --digests --format "{{.Digest}}" $IMAGE_URI)
+          echo "::set-output name=digest::$DIGEST"
+
+      - name: Create and push Docker manifest
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.environment.service }}:latest"
+          DIGEST=${{ steps.get-digest.outputs.digest }}
+          docker manifest create $IMAGE_URI --amend $IMAGE_URI@${DIGEST}
+          docker manifest push $IMAGE_URI
+
+      - name: Update ECS service
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.environment.service }}:latest"
+          echo "Updating service ${{ matrix.environment.service }} with image $IMAGE_URI"
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service ${{ matrix.environment.service }} --force-new-deployment --region $AWS_REGION --desired-count 1
