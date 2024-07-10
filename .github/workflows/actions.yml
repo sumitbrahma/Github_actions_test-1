@@ -1,57 +1,70 @@
-deploy name: Build, Push Docker Images to ECR, and Create Manifests
+name: Build, Push Docker Images to ECR, and Update ECS Services
 
 on:
   push:
     branches: [ "main" ]
 
 jobs:
-  build-push-and-deploy:
-    name: Build, Push Docker Images to ECR, and Create Manifests
+  build-and-deploy:
+    name: Build, Push Docker Images to ECR, and Update ECS Services
     runs-on: ubuntu-latest
 
     env:
       AWS_REGION: "us-east-1"
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-      SERVICES: "service1 service2 service3"
       ECS_CLUSTER_NAME: "upload_ECS"
+      ECS_ROLE_ARN: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role"
+
+    strategy:
+      matrix:
+        environment: [staging, production, qa]
+        service: [service1, service2, service3]
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up QEMU and Docker Buildx
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Configure AWS credentials and ECR login
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Build, Push Docker images, and Get Digests
-        run: |
-          for SERVICE in $SERVICES; do
-            docker build -t $ECR_REGISTRY/$SERVICE:latest -f Dockerfile.$SERVICE .
-            docker push $ECR_REGISTRY/$SERVICE:latest
-            DIGEST=$(docker images --digests --format "{{.Digest}}" $ECR_REGISTRY/$SERVICE:latest)
-            echo "::set-output name=${SERVICE}_digest::$DIGEST"
-          done
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Create and push Docker manifests
+      - name: Build and push Docker image
         run: |
-          for SERVICE in $SERVICES; do
-            DIGEST=${{ steps["Build, Push Docker images, and Get Digests"].outputs["${SERVICE}_digest"] }}
-            docker manifest create $ECR_REGISTRY/$SERVICE:multi-arch \
-                --amend $ECR_REGISTRY/$SERVICE:latest@${DIGEST}
-            docker manifest push $ECR_REGISTRY/$SERVICE:multi-arch
-          done
+          DOCKERFILE="Dockerfile.${{ matrix.environment }}"
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
+          docker build -t $IMAGE_URI -f $DOCKERFILE .
+          docker push $IMAGE_URI
 
-      - name: Update ECS services
+      - name: Get image digest
+        id: get-digest
         run: |
-          for SERVICE in $SERVICES; do
-            IMAGE_URI=$ECR_REGISTRY/$SERVICE:multi-arch
-            echo "Updating service $SERVICE with image $IMAGE_URI"
-            aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION --desired-count 1
-          done
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
+          DIGEST=$(docker images --digests --format "{{.Digest}}" $IMAGE_URI)
+          echo "::set-output name=digest::$DIGEST"
+
+      - name: Create and push Docker manifest
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
+          DIGEST=${{ steps.get-digest.outputs.digest }}
+          docker manifest create $IMAGE_URI --amend $IMAGE_URI@${DIGEST}
+          docker manifest push $IMAGE_URI
+
+      - name: Update ECS service
+        run: |
+          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
+          echo "Updating service ${{ matrix.service }} with image $IMAGE_URI"
+          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service ${{ matrix.service }} --force-new-deployment --region $AWS_REGION --desired-count 1
