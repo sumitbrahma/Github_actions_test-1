@@ -15,11 +15,7 @@ jobs:
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
       ECS_CLUSTER_NAME: "upload_ECS"
       ECS_ROLE_ARN: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role"
-
-    strategy:
-      matrix:
-        environment: [staging, production, qa]
-        service: [service1, service2, service3]
+      SERVICES: "service1 service2 service3"
 
     steps:
       - name: Checkout code
@@ -42,29 +38,37 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build and push Docker image
+      - name: Build and push Docker images
         run: |
-          DOCKERFILE="Dockerfile.${{ matrix.environment }}"
-          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
-          docker build -t $IMAGE_URI -f $DOCKERFILE .
-          docker push $IMAGE_URI
+          for SERVICE in $SERVICES; do
+            DOCKERFILE="Dockerfile.${SERVICE}"
+            IMAGE_URI="$ECR_REGISTRY/$SERVICE:latest"
+            docker build -t $IMAGE_URI -f $DOCKERFILE .
+            docker push $IMAGE_URI
+          done
 
-      - name: Get image digest
-        id: get-digest
+      - name: Get image digests
+        id: get-digests
         run: |
-          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
-          DIGEST=$(docker images --digests --format "{{.Digest}}" $IMAGE_URI)
-          echo "::set-output name=digest::$DIGEST"
+          for SERVICE in $SERVICES; do
+            IMAGE_URI="$ECR_REGISTRY/$SERVICE:latest"
+            DIGEST=$(docker images --digests --format "{{.Digest}}" $IMAGE_URI)
+            echo "::set-output name=${SERVICE}_digest::$DIGEST"
+          done
 
-      - name: Create and push Docker manifest
+      - name: Create and push Docker manifests
         run: |
-          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
-          DIGEST=${{ steps.get-digest.outputs.digest }}
-          docker manifest create $IMAGE_URI --amend $IMAGE_URI@${DIGEST}
-          docker manifest push $IMAGE_URI
+          for SERVICE in $SERVICES; do
+            IMAGE_URI="$ECR_REGISTRY/$SERVICE:latest"
+            DIGEST=${{ steps.get-digests.outputs["${SERVICE}_digest"] }}
+            docker manifest create $IMAGE_URI --amend $IMAGE_URI@${DIGEST}
+            docker manifest push $IMAGE_URI
+          done
 
-      - name: Update ECS service
+      - name: Update ECS services
         run: |
-          IMAGE_URI="$ECR_REGISTRY/${{ matrix.service }}:latest"
-          echo "Updating service ${{ matrix.service }} with image $IMAGE_URI"
-          aws ecs update-service --cluster $ECS_CLUSTER_NAME --service ${{ matrix.service }} --force-new-deployment --region $AWS_REGION --desired-count 1
+          for SERVICE in $SERVICES; do
+            IMAGE_URI="$ECR_REGISTRY/$SERVICE:latest"
+            echo "Updating service $SERVICE with image $IMAGE_URI"
+            aws ecs update-service --cluster $ECS_CLUSTER_NAME --service $SERVICE --force-new-deployment --region $AWS_REGION --desired-count 1
+          done
