@@ -19,7 +19,7 @@ jobs:
     strategy:
       matrix:
         environment: [staging, production, qa]
-        service: [service1, service2, service3]
+        service: [service]
 
     steps:
       - name: Checkout code
