@@ -12,6 +12,7 @@ jobs:
     env:
       AWS_REGION: "us-east-1"
       SERVICES: "service1 service2 service3"
+      ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
 
     steps:
       - name: Checkout
@@ -47,12 +48,36 @@ jobs:
 
       - name: Build, Tag, and Push the Image to Amazon ECR
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
         run: |
-          for SERVICE in $SERVICES; do
+          for SERVICE in ${{ env.SERVICES }}; do
             DOCKERFILE="Dockerfile.${SERVICE}"
-            IMAGE_URI="$ECR_REGISTRY/$SERVICE:$IMAGE_TAG"
+            IMAGE_URI="${{ env.ECR_REGISTRY }}/${SERVICE}:${IMAGE_TAG}"
             docker build -t $IMAGE_URI -f $DOCKERFILE .
             docker push $IMAGE_URI
+          done
+
+      - name: Get image digests
+        id: get-digests
+        run: |
+          for SERVICE in ${{ env.SERVICES }}; do
+            IMAGE_URI="${{ env.ECR_REGISTRY }}/${SERVICE}:${{ steps.increment-git-tag.outputs.git-tag }}"
+            DIGEST=$(docker images --digests --format "{{.Digest}}" $IMAGE_URI)
+            echo "${SERVICE}_digest=${DIGEST}" >> $GITHUB_ENV
+          done
+
+      - name: Create and push Docker manifest
+        run: |
+          for SERVICE in ${{ env.SERVICES }}; do
+            IMAGE_URI="${{ env.ECR_REGISTRY }}/${SERVICE}:${{ steps.increment-git-tag.outputs.git-tag }}"
+            DIGEST=$(printenv ${SERVICE}_digest)
+            docker manifest create $IMAGE_URI --amend $IMAGE_URI@$DIGEST
+            docker manifest push $IMAGE_URI
+          done
+
+      - name: Update ECS services
+        run: |
+          for SERVICE in ${{ env.SERVICES }}; do
+            IMAGE_URI="${{ env.ECR_REGISTRY }}/${SERVICE}:${{ steps.increment-git-tag.outputs.git-tag }}"
+            aws ecs update-service --cluster ${{ env.ECS_CLUSTER_NAME }} --service $SERVICE --force-new-deployment --region ${{ env.AWS_REGION }}
           done
