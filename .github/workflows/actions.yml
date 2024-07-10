@@ -1,98 +1,48 @@
-name: Build and Push Golang Image to AWS ECR and Deploy to ECS
+deploy name: Build, Push Docker Images to ECR, and Create Manifests
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
 
 jobs:
   build-push-and-deploy:
-    name: Build, Push Docker Images to ECR, and Deploy to ECS
+    name: Build, Push Docker Images to ECR, and Create Manifests
     runs-on: ubuntu-latest
 
     env:
       AWS_REGION: "us-east-1"
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-      SERVICES: "service1 service2 service3"  # Update with your actual service names
+      SERVICES: "service1 service2 service3"
       ECS_CLUSTER_NAME: "upload_ECS"
-      ECS_ROLE_ARN: "arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/your-ecs-role"
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install dos2unix
-        run: sudo apt-get install dos2unix
-
-      - name: Convert line endings
-        run: dos2unix ./build/git_update.sh
-
-      - name: List build directory contents
-        run: ls -alh build
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Log in to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Automatic Tagging of Releases
-        id: increment-git-tag
-        run: |
-          chmod +x ./build/git_update.sh
-          bash ./build/git_update.sh -v major
-
-      - name: Build, Tag, and Push the Image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: lesson-086
-          IMAGE_TAG: ${{ steps.increment-git-tag.outputs.git-tag }}
-        run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2
-
-      - name: Set up Docker Buildx
+      - name: Set up QEMU and Docker Buildx
         uses: docker/setup-buildx-action@v2
 
-      - name: Configure AWS credentials for deploy step
+      - name: Configure AWS credentials and ECR login
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Log in to Amazon ECR for deploy step
-        id: login-ecr-deploy
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push Docker images for deploy
+      - name: Build, Push Docker images, and Get Digests
         run: |
           for SERVICE in $SERVICES; do
             docker build -t $ECR_REGISTRY/$SERVICE:latest -f Dockerfile.$SERVICE .
             docker push $ECR_REGISTRY/$SERVICE:latest
-          done
-
-      - name: Get image digests for deploy
-        id: get-digests
-        run: |
-          for SERVICE in $SERVICES; do
             DIGEST=$(docker images --digests --format "{{.Digest}}" $ECR_REGISTRY/$SERVICE:latest)
             echo "::set-output name=${SERVICE}_digest::$DIGEST"
           done
 
-      - name: Create and push Docker manifests for deploy
+      - name: Create and push Docker manifests
         run: |
           for SERVICE in $SERVICES; do
-            DIGEST=${{ steps.get-digests.outputs["${SERVICE}_digest"] }}
+            DIGEST=${{ steps["Build, Push Docker images, and Get Digests"].outputs["${SERVICE}_digest"] }}
             docker manifest create $ECR_REGISTRY/$SERVICE:multi-arch \
                 --amend $ECR_REGISTRY/$SERVICE:latest@${DIGEST}
             docker manifest push $ECR_REGISTRY/$SERVICE:multi-arch
